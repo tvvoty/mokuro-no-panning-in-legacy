@@ -20,7 +20,8 @@ let defaultState = {
     eInkMode: false,
     defaultZoomMode: "fit to screen",
     toggleOCRTextBoxes: false,
-    backgroundColor: '#C4C3D0',
+    backgroundColor: '#000000',
+    pageTurnZoneWidth: '5',
 };
 
 let state = JSON.parse(JSON.stringify(defaultState));
@@ -53,6 +54,7 @@ function updateUI() {
     document.getElementById('menuDefaultZoom').value = state.defaultZoomMode;
     document.getElementById('menuToggleOCRTextBoxes').checked = state.toggleOCRTextBoxes;
     document.getElementById('menuBackgroundColor').value = state.backgroundColor;
+    document.getElementById('menuPageTurnZoneWidth').value = state.pageTurnZoneWidth || defaultState.pageTurnZoneWidth;
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -62,8 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
     checkImagesAndAlert();
 
     pz = panzoom(pc, {
-        bounds: true,
-        boundsPadding: 0.05,
+        bounds: false,
         maxZoom: 10,
         minZoom: 0.1,
         zoomDoubleClickSpeed: 1,
@@ -77,8 +78,9 @@ document.addEventListener('DOMContentLoaded', function () {
         },
 
         beforeWheel: function (e) {
-            let shouldIgnore = disablePanzoomOnElement(e.target);
-            return shouldIgnore;
+            if (disablePanzoomOnElement(e.target)) return true;
+            // Without Ctrl: we handle wheel as vertical scroll (in our listener). With Ctrl: let panzoom zoom.
+            return !e.ctrlKey;
         },
 
         onTouch: function (e) {
@@ -95,6 +97,37 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
     });
+
+    // Wheel without Ctrl: vertical scroll. Wheel with Ctrl: zoom (handled by panzoom).
+    pc.parentElement.addEventListener('wheel', function (e) {
+        if (e.ctrlKey || disablePanzoomOnElement(e.target)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        pz.moveBy(0, -e.deltaY);
+        constrainPan();
+    }, { passive: false, capture: true });
+
+    let constrainPanRafId = 0;
+    function scheduleConstrainPan() {
+        if (constrainPanRafId) return;
+        constrainPanRafId = requestAnimationFrame(function () {
+            constrainPanRafId = 0;
+            constrainPan();
+        });
+    }
+
+
+// i think technically only "pan" one below is necessary, but i feel like scrolling is smoother if there's more of them, 
+// or i might be halucinating idk.
+// it seems like panzoom library's docs say that "transform" includes every other option, but it doesn't seem to actually include pan
+// because using transform instead of pan makes scrolling very jittery. 
+// not sure if it's a bug or if it's intended behavior and i'm just reading the docs wrong.
+
+    pz.on('panstart', constrainPan);
+    pz.on('pan', constrainPan);
+    pz.on('transform', scheduleConstrainPan);
+    pz.on('panend', constrainPan);
+    pz.on('zoomend', constrainPan);
 
     updatePage(state.page_idx);
     initTextBoxes();
@@ -172,6 +205,8 @@ function updateProperties() {
     if (state.backgroundColor) {
         r.style.setProperty('--colorBackground', state.backgroundColor)
     }
+
+    r.style.setProperty('--pageTurnZoneWidth', (state.pageTurnZoneWidth || defaultState.pageTurnZoneWidth) + 'vw');
 }
 
 document.getElementById('menuR2l').addEventListener('click', function () {
@@ -271,6 +306,12 @@ document.getElementById('menuFontSize').addEventListener('change', (e) => {
     updateProperties();
 });
 
+document.getElementById('menuPageTurnZoneWidth').addEventListener('change', (e) => {
+    state.pageTurnZoneWidth = e.target.value;
+    saveState();
+    updateProperties();
+});
+
 document.getElementById('menuDefaultZoom').addEventListener('change', (e) => {
     state.defaultZoomMode = e.target.value;
     saveState();
@@ -297,6 +338,7 @@ document.getElementById('buttonLeftLeft').addEventListener('click', inputLeftLef
 document.getElementById('buttonLeft').addEventListener('click', inputLeft, false);
 document.getElementById('buttonRight').addEventListener('click', inputRight, false);
 document.getElementById('buttonRightRight').addEventListener('click', inputRightRight, false);
+document.getElementById('buttonToggleTwoPages').addEventListener('click', toggleTwoPagesView, false);
 document.getElementById('leftAPage').addEventListener('click', inputLeft, false);
 document.getElementById('leftAScreen').addEventListener('click', inputLeft, false);
 document.getElementById('rightAPage').addEventListener('click', inputRight, false);
@@ -407,6 +449,42 @@ function panAlign(align_x, align_y) {
     pz.moveTo(x, y);
 }
 
+function getConstrainedPanPosition() {
+    let scale = pz.getTransform().scale;
+    let scaledWidth = pc.offsetWidth * scale;
+    let scaledHeight = pc.offsetHeight * scale;
+    let viewportWidth = getScreenWidth();
+    let viewportHeight = getScreenHeight();
+    let current = pz.getTransform();
+    let newX = current.x;
+    let newY = current.y;
+
+    if (scaledWidth <= viewportWidth) {
+        newX = getOffsetLeft() + (viewportWidth - scaledWidth) / 2;
+    } else {
+        let minX = getOffsetLeft() + viewportWidth - scaledWidth;
+        let maxX = getOffsetLeft();
+        newX = Math.max(minX, Math.min(maxX, current.x));
+    }
+
+    if (scaledHeight <= viewportHeight) {
+        newY = getOffsetTop() + (viewportHeight - scaledHeight) / 2;
+    } else {
+        let minY = getOffsetTop() + viewportHeight - scaledHeight;
+        let maxY = getOffsetTop();
+        newY = Math.max(minY, Math.min(maxY, current.y));
+    }
+
+    return { x: newX, y: newY };
+}
+
+function constrainPan() {
+    let result = getConstrainedPanPosition();
+    let current = pz.getTransform();
+    if (Math.abs(current.x - result.x) > 0.5 || Math.abs(current.y - result.y) > 0.5) {
+        pz.moveTo(result.x, result.y);
+    }
+}
 
 function zoomOriginal() {
     pz.moveTo(0, 0);
@@ -441,6 +519,22 @@ function zoomDefault() {
         case "original size":
             zoomOriginal();
             break;
+    }
+}
+
+function toggleTwoPagesView() {
+    state.singlePageView = !state.singlePageView;
+    document.getElementById("menuDoublePageView").checked = !state.singlePageView;
+    saveState();
+    updatePage(state.page_idx);
+    if (state.singlePageView) {
+        zoomFitToWidth();
+    } else {
+        zoomFitToScreen();
+    }
+    panAlign("center", "top");
+    if (state.eInkMode) {
+        eInkRefresh();
     }
 }
 
@@ -483,6 +577,7 @@ function updatePage(new_page_idx) {
 
     saveState();
     zoomDefault();
+    panAlign("center", "top");
     if (state.eInkMode) {
         eInkRefresh();
     }

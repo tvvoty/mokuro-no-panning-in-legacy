@@ -173,6 +173,9 @@ def top_menu(doc, tag, text, num_pages):
         with tag("span", id="pageIdxDisplay"):
             pass
 
+        with tag("button", id="buttonToggleTwoPages", klass="menuButton", title="Toggle one/two page view and fit zoom"):
+            doc.asis(get_icon("expand-svgrepo-com"))
+
         # workaround for yomichan including the menu bar in the {sentence} field when mining for some reason
         with tag("span", style="color:rgba(255,255,255,0.1);font-size:1px;"):
             text("。")
@@ -239,9 +242,10 @@ def dropdown_menu(doc, tag, text):
             option_toggle("menuTextBoxBorders", "display boxes outlines ")
             option_toggle("menuEditableText", "editable text ")
             option_select("menuFontSize", "font size: ", ["auto", 9, 10, 11, 12, 14, 16, 18, 20, 24, 32, 40, 48, 60])
+            option_select("menuPageTurnZoneWidth", "page-turn zone: ", ["5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"])
             option_toggle("menuEInkMode", "e-ink mode ")
             option_toggle("menuToggleOCRTextBoxes", "toggle OCR text boxes on click")
-            option_color("menuBackgroundColor", "background color", "#C4C3D0")
+            option_color("menuBackgroundColor", "background color", "#000000")
             option_click("menuReset", "reset settings")
             option_click("menuAbout", "about/help")
 
