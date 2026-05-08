@@ -2,14 +2,17 @@
 
 Read Japanese manga with selectable text inside a browser.
 
-The fork adds a couple of quality of life features to the legacy html output:
+The fork adds some quality of life features to the legacy html output:
 
 1. The panning style reader (where page can be panned freely around the canvas) is replaced with scrolling style reader (page is centered, can't pan left/right, only scroll up/down until the edge of the page) similar to manga readers on most websites.
 2. Menu option to change the size of the page turn areas (the orignal size of the areas can be too small to consistently hit on phones)
 3. "Show two pages" button. Toggles the two page option without you having to go to the menu and also zooms out the page to fit the screen. Pressing second time returns to single page mod and fits the image to width. Convenient when reading primarily in single page mode when you want to see the occasional 2 page spread.
 
+The reason to change the legacy html output despite it being depricated is because some apps (in particular jidoujisho) still rely on it instead of the new format and I personally really don't like the panning style reader. 
 
-Why change legacy html output if it's depricated? - Some apps (in particular jidoujisho) still rely on it instead of the new format and I personally really don't like the panning style reader. 
+Installation: I'd say if you already have mokuro installed through your python package manager - just replace mokuro/legacy/overlay_generator.py, mokuro/legacy/script.js and mokuro/legacy/styles.css with respective files in this repository (or just replace the whole legacy folder) or you can download this repository and use it I guess.
+
+
 
 **See demo: https://kha-white.github.io/manga-demo**
 
